@@ -8,7 +8,7 @@ interface BankPageProps {
   userData: {
     user: User;
     swapFlapToTon: (flapAmount: number) => Promise<{success: boolean, message: string}>;
-    withdrawTon: (tonAmount: number) => Promise<{success: boolean, message: string}>;
+    withdrawTon: (tonAmount: number, address: string) => Promise<{success: boolean, message: string}>;
   };
 }
 
@@ -19,6 +19,7 @@ const BankPage: React.FC<BankPageProps> = ({ userData }) => {
   const [withdrawAddress, setWithdrawAddress] = useState('');
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<'swap' | 'withdraw' | null>(null);
   const [isConfirmingWithdrawal, setIsConfirmingWithdrawal] = useState(false);
 
   const tonToReceive = useMemo(() => {
@@ -32,12 +33,13 @@ const BankPage: React.FC<BankPageProps> = ({ userData }) => {
       setMessage({ text: 'Please enter a valid amount.', type: 'error' });
       return;
     }
-    if (amount > user.flapBalance) {
+    if (amount > user.flap_balance) {
       setMessage({ text: 'Insufficient FLAP balance.', type: 'error' });
       return;
     }
 
     setIsLoading(true);
+    setLoadingAction('swap');
     setMessage(null);
     const result = await swapFlapToTon(amount);
     setMessage({ text: result.message, type: result.success ? 'success' : 'error'});
@@ -45,28 +47,29 @@ const BankPage: React.FC<BankPageProps> = ({ userData }) => {
         setFlapAmount('');
     }
     setIsLoading(false);
-  }, [flapAmount, user.flapBalance, swapFlapToTon]);
+    setLoadingAction(null);
+  }, [flapAmount, user.flap_balance, swapFlapToTon]);
   
   const processWithdrawal = useCallback(async () => {
     setIsConfirmingWithdrawal(false); // Close dialog first
     const amount = parseFloat(tonAmount);
-    // This is a re-validation, though the button logic should prevent this state.
-    if (isNaN(amount) || amount <= 0 || amount > user.tonBalance || !withdrawAddress.trim()) {
+    if (isNaN(amount) || amount <= 0 || amount > user.ton_balance || !withdrawAddress.trim()) {
       setMessage({ text: 'An unexpected error occurred. Please check details.', type: 'error' });
       return;
     }
     
     setIsLoading(true);
+    setLoadingAction('withdraw');
     setMessage(null);
-    console.log(`Withdrawing ${amount} TON to address: ${withdrawAddress}`);
-    const result = await withdrawTon(amount);
+    const result = await withdrawTon(amount, withdrawAddress);
     setMessage({ text: result.message, type: result.success ? 'success' : 'error'});
     if (result.success) {
       setTonAmount('');
       setWithdrawAddress('');
     }
     setIsLoading(false);
-  }, [tonAmount, user.tonBalance, withdrawTon, withdrawAddress]);
+    setLoadingAction(null);
+  }, [tonAmount, user.ton_balance, withdrawTon, withdrawAddress]);
 
   const handleWithdrawClick = () => {
     setMessage(null);
@@ -83,7 +86,7 @@ const BankPage: React.FC<BankPageProps> = ({ userData }) => {
        setMessage({ text: `Minimum withdrawal is ${MIN_WITHDRAWAL_TON} TON.`, type: 'error' });
        return;
     }
-    if (amount > user.tonBalance) {
+    if (amount > user.ton_balance) {
       setMessage({ text: 'Insufficient TON balance for this withdrawal.', type: 'error' });
       return;
     }
@@ -99,11 +102,11 @@ const BankPage: React.FC<BankPageProps> = ({ userData }) => {
         <div className="space-y-4 mb-6">
           <div className="p-3 bg-slate-800/50 rounded-md">
             <p className="text-sm text-gray-300">FLAP Balance</p>
-            <p className="text-2xl text-yellow-400">{Math.floor(user.flapBalance).toLocaleString()}</p>
+            <p className="text-2xl text-yellow-400">{Math.floor(user.flap_balance).toLocaleString()}</p>
           </div>
           <div className="p-3 bg-slate-800/50 rounded-md">
             <p className="text-sm text-gray-300">TON Balance</p>
-            <p className="text-2xl text-cyan-400">{user.tonBalance.toFixed(6)}</p>
+            <p className="text-2xl text-cyan-400">{user.ton_balance.toFixed(6)}</p>
           </div>
         </div>
 
@@ -125,10 +128,10 @@ const BankPage: React.FC<BankPageProps> = ({ userData }) => {
             
             <button 
               onClick={handleSwap} 
-              disabled={isLoading || !flapAmount || parseFloat(flapAmount) <= 0 || parseFloat(flapAmount) > user.flapBalance}
+              disabled={isLoading || !flapAmount || parseFloat(flapAmount) <= 0 || parseFloat(flapAmount) > user.flap_balance}
               className="w-full px-6 py-3 bg-yellow-500 text-slate-900 rounded-lg border-b-4 border-yellow-700 hover:bg-yellow-600 disabled:bg-gray-500 disabled:border-gray-700 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:border-b-0 active:translate-y-1 flex items-center justify-center gap-2"
             >
-              {isLoading && !isConfirmingWithdrawal ? (
+              {isLoading && loadingAction === 'swap' ? (
                 <>
                   <SpinnerIcon />
                   <span>Swapping...</span>
@@ -168,10 +171,10 @@ const BankPage: React.FC<BankPageProps> = ({ userData }) => {
             </div>
             <button 
               onClick={handleWithdrawClick} 
-              disabled={isLoading || !tonAmount || !withdrawAddress.trim() || parseFloat(tonAmount) < MIN_WITHDRAWAL_TON || parseFloat(tonAmount) > user.tonBalance}
+              disabled={isLoading || !tonAmount || !withdrawAddress.trim() || parseFloat(tonAmount) < MIN_WITHDRAWAL_TON || parseFloat(tonAmount) > user.ton_balance}
               className="w-full px-6 py-3 bg-cyan-500 text-slate-900 rounded-lg border-b-4 border-cyan-700 hover:bg-cyan-600 disabled:bg-gray-500 disabled:border-gray-700 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:border-b-0 active:translate-y-1 flex items-center justify-center gap-2"
             >
-              {isLoading && isConfirmingWithdrawal ? (
+              {isLoading && loadingAction === 'withdraw' ? (
                 <>
                   <SpinnerIcon />
                   <span>Processing...</span>

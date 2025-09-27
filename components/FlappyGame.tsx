@@ -19,7 +19,7 @@ const FlappyGame: React.FC<FlappyGameProps> = ({ onFlapEarned }) => {
     setTimeout(() => setIsShaking(false), 500); // Duration of the shake animation
   }, [onFlapEarned]);
   
-  const { startGame, stopGame, initializeAudio, playMusic } = useGameLogic(canvasRef, handleGameOver);
+  const { startGame, stopGame, initializeAudio } = useGameLogic(canvasRef, handleGameOver);
 
   const handleStart = () => {
     initializeAudio(); // Unlock audio context on first user interaction
@@ -29,11 +29,12 @@ const FlappyGame: React.FC<FlappyGameProps> = ({ onFlapEarned }) => {
   };
   
   useEffect(() => {
-    playMusic();
+    // The music is now correctly started via the `startGame` function.
+    // This effect ensures that the game and its music are stopped if the component unmounts.
     return () => {
       stopGame();
     }
-  }, [playMusic, stopGame]);
+  }, [stopGame]);
 
   return (
     <div className={`w-full max-w-md flex flex-col items-center justify-center relative ${isShaking ? 'shake' : ''}`}>

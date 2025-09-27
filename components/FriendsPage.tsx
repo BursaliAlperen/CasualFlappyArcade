@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import type { User, Friend } from '../types';
+import type { User } from '../types';
 import { SpinnerIcon, CopyIcon } from './icons/Icons';
 
 interface FriendsPageProps {
@@ -32,7 +32,8 @@ const FriendsPage: React.FC<FriendsPageProps> = ({ userData }) => {
   }, [friendId, addFriend]);
 
   const handleCopyLink = useCallback(() => {
-    const inviteLink = `https://t.me/CasualFlappyArcadeBot?start=${user.telegramId}`;
+    // Note: The bot must be configured to handle the 'start' parameter to attribute referrals.
+    const inviteLink = `https://t.me/CasualFlappyArcadeBot?start=${user.telegram_id}`;
     navigator.clipboard.writeText(inviteLink).then(() => {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
@@ -40,14 +41,15 @@ const FriendsPage: React.FC<FriendsPageProps> = ({ userData }) => {
       console.error('Failed to copy text: ', err);
       setMessage({ text: 'Failed to copy link.', type: 'error' });
     });
-  }, [user.telegramId]);
+  }, [user.telegram_id]);
 
-  const totalBonus = user.friends.reduce((sum, friend) => sum + friend.bonus, 0);
+  // Backend provides 5 FLAP per friend invited.
+  const totalBonus = user.friends.length * 5;
 
   return (
     <div className="w-full max-w-md p-6 bg-purple-700/50 rounded-lg shadow-2xl shadow-black/50 backdrop-blur-sm text-center">
       <h2 className="text-3xl text-yellow-300 mb-4">FRIENDS</h2>
-      <p className="text-purple-200 mb-6">Invite friends and earn FLAP for each one that joins!</p>
+      <p className="text-purple-200 mb-6">Invite friends and earn 5 FLAP for each one that joins!</p>
 
       <div className="space-y-4 mb-6">
         <div className="p-3 bg-purple-800/50 rounded-md">
@@ -116,10 +118,9 @@ const FriendsPage: React.FC<FriendsPageProps> = ({ userData }) => {
         <h3 className="text-lg text-yellow-200 mb-2 sticky top-0 bg-purple-900/50 py-1">Your Squad</h3>
         {user.friends.length > 0 ? (
           <ul className="space-y-2">
-            {user.friends.map((friend) => (
-              <li key={friend.id} className="flex justify-between items-center bg-purple-800/60 p-2 rounded-md">
-                <span className="text-white">{friend.username}</span>
-                <span className="text-yellow-400 text-sm">+{friend.bonus} FLAP</span>
+            {user.friends.map((friendId) => (
+              <li key={friendId} className="flex justify-between items-center bg-purple-800/60 p-2 rounded-md">
+                <span className="text-white truncate">ID: {friendId}</span>
               </li>
             ))}
           </ul>

@@ -1,17 +1,10 @@
-
 export interface User {
-  telegramId: string;
+  telegram_id: string;
   username: string;
-  profilePhotoUrl: string;
-  flapBalance: number;
-  tonBalance: number;
-  friends: Friend[];
-}
-
-export interface Friend {
-  id: string;
-  username:string;
-  bonus: number;
+  profile_photo: string;
+  flap_balance: number;
+  ton_balance: number;
+  friends: string[];
 }
 
 export type Page = 'FLAPPY' | 'BANK' | 'FRIENDS';

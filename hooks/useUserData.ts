@@ -1,112 +1,127 @@
-import { useState, useCallback } from 'react';
-import type { User, Friend } from '../types';
-import { FLAP_TO_TON_CONVERSION_RATE } from '../constants';
+import { useState, useCallback, useEffect } from 'react';
+import type { User } from '../types';
 
-// Mock initial user data. In a real app, this would be fetched from a backend.
-const initialUser: User = {
-  telegramId: '123456789',
-  username: 'TelegramUser',
-  profilePhotoUrl: 'https://picsum.photos/100',
-  flapBalance: 10000,
-  tonBalance: 0.1,
-  friends: [
-    { id: 'friend1', username: 'PlayerOne', bonus: 2 },
-    { id: 'friend2', username: 'PlayerTwo', bonus: 2 },
-  ],
-};
+// Helper to handle API requests
+async function apiRequest<T>(endpoint: string, body: object): Promise<T> {
+  // In a real production app, the base URL would come from an environment variable
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'An API error occurred.');
+  }
+  return response.json();
+}
 
 const useUserData = () => {
-  const [user, setUser] = useState<User>(initialUser);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Simulate API call to add FLAP points
-  const addFlap = useCallback((amount: number) => {
-    console.log(`Adding ${amount} FLAP to balance.`);
-    setUser(prevUser => ({
-      ...prevUser,
-      flapBalance: prevUser.flapBalance + amount,
-    }));
+  useEffect(() => {
+    const initUser = async () => {
+      try {
+        setLoading(true);
+        // Safely access Telegram Web App data
+        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+
+        // Fallback for development outside of Telegram
+        const telegram_id = tgUser?.id?.toString() ?? '123456789_dev';
+        const username = tgUser?.username ?? 'DevUser';
+        const profile_photo_url = tgUser?.photo_url ?? 'https://picsum.photos/100';
+
+        const userData = await apiRequest<User>('/user', {
+          telegram_id,
+          username,
+          profile_photo: profile_photo_url,
+        });
+
+        setUser(userData);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load user data.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initUser();
   }, []);
-  
-  // Simulate API call to swap FLAP for TON
-  const swapFlapToTon = useCallback((flapAmount: number): Promise<{success: boolean, message: string}> => {
-    return new Promise((resolve) => {
-      setTimeout(() => { // Simulate network delay
-        if (user.flapBalance < flapAmount) {
-            resolve({ success: false, message: 'Insufficient FLAP balance.' });
-            return;
-        }
 
-        const tonToReceive = flapAmount * FLAP_TO_TON_CONVERSION_RATE;
+  const addFlap = useCallback(async (amount: number) => {
+    if (!user) return;
+    try {
+      console.log(`Adding ${amount} FLAP to balance.`);
+      const updatedData = await apiRequest<{ flap_balance: number }>('/addFlap', {
+        telegram_id: user.telegram_id,
+        flap: amount,
+      });
+      setUser(prevUser => prevUser ? { ...prevUser, flap_balance: updatedData.flap_balance } : null);
+    } catch (err) {
+      console.error("Failed to add flap:", err);
+      // Optionally show an error to the user via a toast notification
+    }
+  }, [user]);
 
-        setUser(prevUser => ({
-          ...prevUser,
-          flapBalance: prevUser.flapBalance - flapAmount,
-          tonBalance: prevUser.tonBalance + tonToReceive,
-        }));
-        
-        console.log(`Swapped ${flapAmount} FLAP for ${tonToReceive} TON.`);
-        resolve({ success: true, message: `Successfully swapped ${flapAmount} FLAP!` });
-      }, 500);
-    });
-  }, [user.flapBalance]);
+  const swapFlapToTon = useCallback(async (flapAmount: number): Promise<{ success: boolean; message: string }> => {
+    if (!user) return { success: false, message: "User not loaded." };
 
-  // Simulate API call for withdrawal
-  const withdrawTon = useCallback((tonAmount: number): Promise<{success: boolean, message: string}> => {
-     return new Promise((resolve) => {
-        setTimeout(() => { // Simulate network delay
-            if(user.tonBalance < tonAmount) {
-                resolve({ success: false, message: 'Insufficient TON balance.'});
-                return;
-            }
-             setUser(prevUser => ({
-                ...prevUser,
-                tonBalance: prevUser.tonBalance - tonAmount
-            }));
-            console.log(`Withdrew ${tonAmount} TON.`);
-            resolve({ success: true, message: `Withdrawal of ${tonAmount} TON successful.`});
-        }, 500);
-     });
-  }, [user.tonBalance]);
+    try {
+      const data = await apiRequest<{ flap_balance: number; ton_balance: number }>('/swap', {
+        telegram_id: user.telegram_id,
+        flap_amount: flapAmount,
+      });
+      setUser(prevUser => prevUser ? { ...prevUser, flap_balance: data.flap_balance, ton_balance: data.ton_balance } : null);
+      return { success: true, message: `Successfully swapped ${flapAmount} FLAP!` };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Swap failed.' };
+    }
+  }, [user]);
 
-  const addFriend = useCallback((friendId: string): Promise<{success: boolean, message: string}> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const trimmedId = friendId.trim();
-        if (!trimmedId) {
-            resolve({ success: false, message: 'Friend Telegram ID cannot be empty.' });
-            return;
-        }
+  const withdrawTon = useCallback(async (tonAmount: number, address: string): Promise<{ success: boolean; message: string }> => {
+    if (!user) return { success: false, message: "User not loaded." };
+    
+    try {
+      const data = await apiRequest<{ ton_balance: number }>('/withdraw', {
+        telegram_id: user.telegram_id,
+        ton_amount: tonAmount,
+        address: address, // Pass address to backend
+      });
+      setUser(prevUser => prevUser ? { ...prevUser, ton_balance: data.ton_balance } : null);
+      return { success: true, message: `Withdrawal of ${tonAmount} TON successful.` };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Withdrawal failed.' };
+    }
+  }, [user]);
 
-        if (trimmedId === user.telegramId) {
-            resolve({ success: false, message: 'You cannot invite yourself.' });
-            return;
-        }
+  const addFriend = useCallback(async (friendId: string): Promise<{ success: boolean; message: string }> => {
+    if (!user) return { success: false, message: "User not loaded." };
 
-        const friendExists = user.friends.some(f => f.id === trimmedId);
-        if (friendExists) {
-            resolve({ success: false, message: `Friend with ID ${trimmedId} has already been invited.` });
-            return;
-        }
-        
-        const newFriend: Friend = {
-            id: trimmedId,
-            // In a real app, you'd fetch the username. For simulation, we'll create a placeholder.
-            username: `Friend#${trimmedId.slice(-4)}`, 
-            bonus: 2 // The bonus is 2 flap per friend
-        };
+    const trimmedId = friendId.trim();
+    if (!trimmedId) {
+        return { success: false, message: 'Friend Telegram ID cannot be empty.' };
+    }
+    if (trimmedId === user.telegram_id) {
+        return { success: false, message: 'You cannot invite yourself.' };
+    }
 
-        setUser(prevUser => ({
-            ...prevUser,
-            friends: [...prevUser.friends, newFriend],
-            flapBalance: prevUser.flapBalance + newFriend.bonus
-        }));
-        
-        resolve({ success: true, message: `Successfully invited friend and earned ${newFriend.bonus} FLAP!` });
-      }, 500);
-    });
-  }, [user.friends, user.telegramId]);
+    try {
+        const data = await apiRequest<{ flap_balance: number; friends: string[] }>('/invite', {
+            telegram_id: user.telegram_id,
+            friend_id: trimmedId,
+        });
+        setUser(prevUser => prevUser ? {...prevUser, friends: data.friends, flap_balance: data.flap_balance} : null);
+        return { success: true, message: `Successfully invited friend!` };
+    } catch (err: any) {
+        return { success: false, message: err.message || `Failed to invite friend.` };
+    }
+  }, [user]);
 
-  return { user, addFlap, swapFlapToTon, withdrawTon, addFriend };
+  return { user, loading, error, addFlap, swapFlapToTon, withdrawTon, addFriend };
 };
 
 export default useUserData;
