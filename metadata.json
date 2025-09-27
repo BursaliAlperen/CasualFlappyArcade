@@ -1,0 +1,5 @@
+{
+  "name": "CasualFlappyArcadeBot",
+  "description": "A Flappy Bird style game for Telegram where you can earn FLAP points and swap them for TON. Invite friends to earn more!",
+  "requestFramePermissions": []
+}

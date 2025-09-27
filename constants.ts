@@ -1,0 +1,2 @@
+export const FLAP_TO_TON_CONVERSION_RATE = 0.001; // 10 FLAP = 0.01 TON
+export const MIN_WITHDRAWAL_TON = 0.05;
